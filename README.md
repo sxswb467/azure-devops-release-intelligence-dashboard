@@ -15,6 +15,21 @@ A locally testable release dashboard that demonstrates:
 - AI-generated release narrative
 - Risk flag panel
 - Mock mode works without any credentials
+- URL-driven mock states for demos and screenshots
+
+## Screenshots
+
+### Atlas Commerce
+
+![Atlas Commerce dashboard](docs/screenshots/atlas-dashboard.png)
+
+### Beacon Operations
+
+![Beacon Operations dashboard](docs/screenshots/beacon-dashboard.png)
+
+### Mobile layout
+
+![Atlas Commerce mobile dashboard](docs/screenshots/atlas-mobile.png)
 
 ## Architecture overview
 
@@ -52,6 +67,11 @@ npm run dev
 ```
 
 Frontend runs at `http://localhost:5175`.
+
+Use the mock URLs directly when you want a stable demo state:
+
+- `http://localhost:5175/?project=atlas`
+- `http://localhost:5175/?project=beacon`
 
 ## Build and validation
 
@@ -96,6 +116,8 @@ Without those values, the app uses realistic demo data.
 │   │   ├── main.jsx
 │   │   └── styles.css
 │   └── vite.config.js
+├── docs/
+│   └── screenshots/
 ├── server/
 │   └── src/
 │       ├── db.js

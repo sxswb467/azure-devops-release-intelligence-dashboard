@@ -2,9 +2,25 @@ import { useEffect, useMemo, useState } from "react";
 import { MetricPanel } from "./components/MetricPanel.jsx";
 import { SectionPanel } from "./components/SectionPanel.jsx";
 import { StatusBadge, getStatusTone } from "./components/StatusBadge.jsx";
-import { buildDashboardMetrics, formatDateTime, getLatestBuildTimestamp } from "./lib/dashboard.js";
+import {
+  buildBriefPoints,
+  buildDashboardMetrics,
+  formatDateTime,
+  getLatestBuildTimestamp,
+  getProjectProfile,
+  getReleasePosture
+} from "./lib/dashboard.js";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4100/api";
+const DEFAULT_PROJECT = "atlas";
+
+function getInitialProject() {
+  if (typeof window === "undefined") {
+    return DEFAULT_PROJECT;
+  }
+
+  return new URLSearchParams(window.location.search).get("project") || DEFAULT_PROJECT;
+}
 
 /**
  * Render the release intelligence dashboard application shell.
@@ -13,7 +29,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4100
  */
 export default function App() {
   const [projects, setProjects] = useState([]);
-  const [selectedProject, setSelectedProject] = useState("atlas");
+  const [selectedProject, setSelectedProject] = useState(getInitialProject);
   const [dashboard, setDashboard] = useState(null);
   const [environment, setEnvironment] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -29,9 +45,22 @@ export default function App() {
     void loadDashboard(selectedProject);
   }, [selectedProject]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set("project", selectedProject);
+    window.history.replaceState({}, "", nextUrl);
+  }, [selectedProject]);
+
   const metrics = useMemo(() => buildDashboardMetrics(dashboard), [dashboard]);
   const latestBuildTimestamp = useMemo(() => getLatestBuildTimestamp(dashboard), [dashboard]);
   const selectedProjectName = projects.find((project) => project.key === selectedProject)?.name || "Release workspace";
+  const projectProfile = useMemo(() => getProjectProfile(selectedProject), [selectedProject]);
+  const releasePosture = useMemo(() => getReleasePosture(dashboard, metrics), [dashboard, metrics]);
+  const briefPoints = useMemo(() => buildBriefPoints(dashboard, metrics), [dashboard, metrics]);
 
   async function loadProjects() {
     try {
@@ -107,7 +136,7 @@ export default function App() {
   }
 
   return (
-    <main className="dashboard-shell">
+    <main className={`dashboard-shell dashboard-shell--${selectedProject}`}>
       <div className="dashboard-frame">
         <header className="dashboard-header">
           <div className="dashboard-header__top">
@@ -115,9 +144,23 @@ export default function App() {
               <p className="dashboard-header__eyebrow">Release workspace</p>
               <h1 className="dashboard-header__title">Azure DevOps Release Intelligence</h1>
               <p className="dashboard-header__subtitle">
-                Track pipeline readiness, review active delivery risk, and scan the current release narrative without
-                switching between build, work item, and pull request views.
+                A mock release command surface for rapidly showing whether the selected project is ready, risky, or
+                blocked before a promotion meeting starts.
               </p>
+              <div className="hero-inline-grid">
+                <div className="hero-inline-card">
+                  <p className="hero-inline-card__label">Release train</p>
+                  <p className="hero-inline-card__value">{projectProfile.releaseTrain}</p>
+                </div>
+                <div className="hero-inline-card">
+                  <p className="hero-inline-card__label">Target lane</p>
+                  <p className="hero-inline-card__value">{projectProfile.environment}</p>
+                </div>
+                <div className="hero-inline-card">
+                  <p className="hero-inline-card__label">Primary owner</p>
+                  <p className="hero-inline-card__value">{projectProfile.owner}</p>
+                </div>
+              </div>
             </div>
 
             <div className="dashboard-header__actions">
@@ -145,6 +188,10 @@ export default function App() {
                   <span>Project</span>
                   <strong>{selectedProjectName}</strong>
                 </div>
+                <div className="meta-pill">
+                  <span>Stage</span>
+                  <strong>{projectProfile.stage}</strong>
+                </div>
                 {latestBuildTimestamp ? (
                   <div className="meta-pill">
                     <span>Latest activity</span>
@@ -152,6 +199,25 @@ export default function App() {
                   </div>
                 ) : null}
               </div>
+            </div>
+          </div>
+
+          <div className={`hero-decision hero-decision--${releasePosture.tone}`}>
+            <div>
+              <div className="hero-decision__pill-row">
+                <span className={`hero-decision__pill hero-decision__pill--${releasePosture.tone}`}>{releasePosture.label}</span>
+                <span className="hero-decision__pill hero-decision__pill--muted">{environment?.azureMode || "mock"}</span>
+              </div>
+              <h2 className="hero-decision__title">{releasePosture.headline}</h2>
+              <p className="hero-decision__body">{releasePosture.detail}</p>
+            </div>
+            <div className="hero-decision__notes">
+              <p className="hero-decision__notes-label">Next actions</p>
+              <ul className="hero-decision__list">
+                {releasePosture.nextActions.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
             </div>
           </div>
 
@@ -194,11 +260,23 @@ export default function App() {
           <div className="dashboard-layout">
             <div className="dashboard-column">
               <SectionPanel
-                eyebrow="Summary"
-                title="Release narrative"
-                description="A concise snapshot for engineering leadership and release managers."
+                eyebrow="Brief"
+                title="Release brief"
+                description="A mock-friendly summary tuned for screenshots, reviews, and stakeholder walkthroughs."
               >
-                <p className="summary-copy">{dashboard.releaseSummary}</p>
+                <p className="summary-copy">{projectProfile.objective}</p>
+                <div className="brief-points">
+                  {briefPoints.map((point) => (
+                    <div key={point} className="brief-point">
+                      <span className="brief-point__marker" />
+                      <p className="brief-point__copy">{point}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="summary-callout">
+                  <p className="summary-callout__label">Narrative</p>
+                  <p className="summary-callout__copy">{dashboard.releaseSummary}</p>
+                </div>
               </SectionPanel>
 
               <SectionPanel
