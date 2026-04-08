@@ -10,9 +10,9 @@
  */
 export function MetricPanel({ label, value, hint, tone = "neutral" }) {
   return (
-    <section className={`metric-panel metric-panel--${tone}`}>
+    <section className={`metric-panel metric-panel--${tone}`} aria-label={`${label}: ${value}`}>
       <p className="metric-panel__label">{label}</p>
-      <p className="metric-panel__value">{value}</p>
+      <p className="metric-panel__value" aria-hidden="true">{value}</p>
       <p className="metric-panel__hint">{hint}</p>
     </section>
   );

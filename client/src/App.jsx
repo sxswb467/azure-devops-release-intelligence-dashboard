@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MetricPanel } from "./components/MetricPanel.jsx";
 import { SectionPanel } from "./components/SectionPanel.jsx";
 import { StatusBadge, getStatusTone } from "./components/StatusBadge.jsx";
@@ -35,6 +35,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState(null);
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
     void loadProjects();
@@ -54,6 +56,12 @@ export default function App() {
     nextUrl.searchParams.set("project", selectedProject);
     window.history.replaceState({}, "", nextUrl);
   }, [selectedProject]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(id);
+  }, [toast]);
 
   const metrics = useMemo(() => buildDashboardMetrics(dashboard), [dashboard]);
   const latestBuildTimestamp = useMemo(() => getLatestBuildTimestamp(dashboard), [dashboard]);
@@ -91,11 +99,17 @@ export default function App() {
   }
 
   async function loadDashboard(projectKey) {
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoading(true);
     setError("");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard?project=${projectKey}`);
+      const response = await fetch(`${API_BASE_URL}/dashboard?project=${projectKey}`, {
+        signal: controller.signal
+      });
       const json = await response.json();
 
       if (!response.ok) {
@@ -104,10 +118,13 @@ export default function App() {
 
       setDashboard(json);
     } catch (loadError) {
+      if (loadError.name === "AbortError") return;
       setDashboard(null);
-      setError(loadError.message);
+      setError(friendlyError(loadError.message));
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }
 
@@ -128,11 +145,20 @@ export default function App() {
       }
 
       await loadDashboard(selectedProject);
+      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setToast(`Dashboard refreshed at ${time}`);
     } catch (refreshError) {
-      setError(refreshError.message);
+      setError(friendlyError(refreshError.message));
     } finally {
       setRefreshing(false);
     }
+  }
+
+  function friendlyError(raw) {
+    if (/failed to fetch|networkerror|network request failed/i.test(raw)) {
+      return "Unable to connect to the server. Check your network connection and try again.";
+    }
+    return raw;
   }
 
   return (
@@ -140,49 +166,12 @@ export default function App() {
       <div className="dashboard-frame">
         <header className="dashboard-header">
           <div className="dashboard-header__top">
-            <div>
+            <div className="dashboard-header__brand">
               <p className="dashboard-header__eyebrow">Release workspace</p>
               <h1 className="dashboard-header__title">Azure DevOps Release Intelligence</h1>
-              <p className="dashboard-header__subtitle">
-                A mock release command surface for rapidly showing whether the selected project is ready, risky, or
-                blocked before a promotion meeting starts.
-              </p>
-              <div className="hero-inline-grid">
-                <div className="hero-inline-card">
-                  <p className="hero-inline-card__label">Release train</p>
-                  <p className="hero-inline-card__value">{projectProfile.releaseTrain}</p>
-                </div>
-                <div className="hero-inline-card">
-                  <p className="hero-inline-card__label">Target lane</p>
-                  <p className="hero-inline-card__value">{projectProfile.environment}</p>
-                </div>
-                <div className="hero-inline-card">
-                  <p className="hero-inline-card__label">Primary owner</p>
-                  <p className="hero-inline-card__value">{projectProfile.owner}</p>
-                </div>
-              </div>
             </div>
 
             <div className="dashboard-header__actions">
-              <div className="control-cluster">
-                <label htmlFor="project-select">Project</label>
-                <select
-                  id="project-select"
-                  className="dashboard-select"
-                  value={selectedProject}
-                  onChange={(event) => setSelectedProject(event.target.value)}
-                >
-                  {projects.map((project) => (
-                    <option key={project.key} value={project.key}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-                <button className="dashboard-button" type="button" onClick={refreshSnapshot} disabled={refreshing}>
-                  {refreshing ? "Refreshing..." : "Refresh snapshot"}
-                </button>
-              </div>
-
               <div className="meta-strip">
                 <div className="meta-pill">
                   <span>Project</span>
@@ -199,25 +188,24 @@ export default function App() {
                   </div>
                 ) : null}
               </div>
-            </div>
-          </div>
-
-          <div className={`hero-decision hero-decision--${releasePosture.tone}`}>
-            <div>
-              <div className="hero-decision__pill-row">
-                <span className={`hero-decision__pill hero-decision__pill--${releasePosture.tone}`}>{releasePosture.label}</span>
-                <span className="hero-decision__pill hero-decision__pill--muted">{environment?.azureMode || "mock"}</span>
+              <div className="control-cluster">
+                <label htmlFor="project-select" className="visually-hidden">Project</label>
+                <select
+                  id="project-select"
+                  className="dashboard-select"
+                  value={selectedProject}
+                  onChange={(event) => setSelectedProject(event.target.value)}
+                >
+                  {projects.map((project) => (
+                    <option key={project.key} value={project.key}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+                <button className="dashboard-button" type="button" onClick={refreshSnapshot} disabled={refreshing}>
+                  {refreshing ? "Refreshing..." : "Refresh"}
+                </button>
               </div>
-              <h2 className="hero-decision__title">{releasePosture.headline}</h2>
-              <p className="hero-decision__body">{releasePosture.detail}</p>
-            </div>
-            <div className="hero-decision__notes">
-              <p className="hero-decision__notes-label">Next actions</p>
-              <ul className="hero-decision__list">
-                {releasePosture.nextActions.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
             </div>
           </div>
 
@@ -250,15 +238,59 @@ export default function App() {
         </header>
 
         {loading ? (
-          <section className="loading-state">Loading dashboard...</section>
+          <section className="loading-state" role="status" aria-live="polite" aria-label="Loading dashboard">
+            <span className="loading-spinner" aria-hidden="true" />
+            Loading dashboard...
+          </section>
         ) : error ? (
-          <section className="error-state">
+          <section className="error-state" role="alert" aria-live="assertive">
             <h2>Dashboard unavailable</h2>
             <p>{error}</p>
+            <button
+              className="error-state__retry"
+              type="button"
+              onClick={() => loadDashboard(selectedProject)}
+            >
+              Try again
+            </button>
           </section>
         ) : (
           <div className="dashboard-layout">
             <div className="dashboard-column">
+              <div className="hero-inline-grid">
+                <div className="hero-inline-card">
+                  <p className="hero-inline-card__label">Release train</p>
+                  <p className="hero-inline-card__value">{projectProfile.releaseTrain}</p>
+                </div>
+                <div className="hero-inline-card">
+                  <p className="hero-inline-card__label">Target lane</p>
+                  <p className="hero-inline-card__value">{projectProfile.environment}</p>
+                </div>
+                <div className="hero-inline-card">
+                  <p className="hero-inline-card__label">Primary owner</p>
+                  <p className="hero-inline-card__value">{projectProfile.owner}</p>
+                </div>
+              </div>
+
+              <div className={`hero-decision hero-decision--${releasePosture.tone}`}>
+                <div>
+                  <div className="hero-decision__pill-row">
+                    <span className={`hero-decision__pill hero-decision__pill--${releasePosture.tone}`}>{releasePosture.label}</span>
+                    <span className="hero-decision__pill hero-decision__pill--muted">{environment?.azureMode || "mock"}</span>
+                  </div>
+                  <h2 className="hero-decision__title">{releasePosture.headline}</h2>
+                  <p className="hero-decision__body">{releasePosture.detail}</p>
+                </div>
+                <div className="hero-decision__notes">
+                  <p className="hero-decision__notes-label">Next actions</p>
+                  <ul className="hero-decision__list">
+                    {releasePosture.nextActions.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
               <SectionPanel
                 eyebrow="Brief"
                 title="Release brief"
@@ -424,6 +456,12 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {toast ? (
+        <div className="toast" role="status" aria-live="polite">
+          {toast}
+        </div>
+      ) : null}
     </main>
   );
 }

@@ -19,7 +19,11 @@ const STATUS_TONES = {
  */
 export function StatusBadge({ status }) {
   const tone = STATUS_TONES[status] || "neutral";
-  return <span className={`status-badge status-badge--${tone}`}>{status}</span>;
+  return (
+    <span className={`status-badge status-badge--${tone}`} aria-label={`Status: ${status}`}>
+      {status}
+    </span>
+  );
 }
 
 /**
