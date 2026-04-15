@@ -18,6 +18,15 @@ This type of system is commonly used for:
 - DevOps health and delivery visibility platforms
 - Internal operational reporting for software teams
 
+## Why this matters
+
+This type of system is useful for:
+
+- Engineering teams that need clearer release visibility across tools
+- Internal operations dashboards that surface risk before launch decisions
+- Leadership reporting workflows that need concise delivery summaries
+- Monitoring and analytics systems that turn technical status into action
+
 ## Key capabilities
 
 - Project selector for switching between delivery contexts
@@ -26,6 +35,23 @@ This type of system is commonly used for:
 - Risk indicators and release narrative generation
 - Mock mode for local demos without external credentials
 - URL-driven demo states for portfolio screenshots and walkthroughs
+
+## Architecture overview
+
+The dashboard follows a compact reporting pipeline:
+
+Frontend (React)
+  ↓
+API layer (Node.js + Express)
+  ↓
+Processing layer (Azure DevOps aggregation, release scoring, AI summary generation)
+  ↓
+Storage (SQL.js snapshot persistence)
+
+Data can come from:
+
+- Mock release data for local review
+- Live Azure DevOps and OpenAI integrations when configured
 
 ## Screenshots
 
