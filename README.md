@@ -40,13 +40,12 @@ This type of system is useful for:
 
 The dashboard follows a compact reporting pipeline:
 
-Frontend (React)
-  ↓
-API layer (Node.js + Express)
-  ↓
-Processing layer (Azure DevOps aggregation, release scoring, AI summary generation)
-  ↓
-Storage (SQL.js snapshot persistence)
+```mermaid
+flowchart TD
+    A["Frontend (React)"] --> B["API layer (Node.js + Express)"]
+    B --> C["Processing layer (Azure DevOps aggregation, release scoring, AI summary generation)"]
+    C --> D["Storage (SQL.js snapshot persistence)"]
+```
 
 Data can come from:
 
